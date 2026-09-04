@@ -12,25 +12,30 @@ Captura leads desde 4 canales (paid media, orgánico, SMS, email marketing), los
 
 ### 1. "Lead Generation — Multicanal"
 
-```
-4 Webhooks (paid media / orgánico / SMS / email marketing)
-  → Normalización (esquema común: nombre, email, teléfono, canal, campaña, mensaje + señales GA4)
-  → Cargar Config Scoring (Data Table, reglas editables)
-  → Calcular Score (0-100, config-driven)
-  → Guardar en CRM (Leads, upsert por email)
-  → Log Interacción
-  → ¿Lead Caliente? → Alerta a ventas (Gmail real) / → ¿Tiene email? → Nurture Email o SMS (simulado)
+```mermaid
+flowchart TD
+    A["4 Webhooks<br/>Paid Media · Orgánico · SMS · Email Marketing"] --> B[Normalización]
+    B --> C["Cargar Config Scoring<br/>(reglas editables, sin código)"]
+    C --> D["Calcular Score<br/>0-100"]
+    D --> E["Guardar en CRM<br/>(upsert por email)"]
+    E --> F[Log Interacción]
+    F --> G{"¿Lead Caliente?"}
+    G -->|Sí| H["🔔 Alerta a ventas<br/>(Gmail real)"]
+    G -->|No| I{"¿Tiene email?"}
+    I -->|Sí| J["📧 Nurture Email<br/>(Gmail real)"]
+    I -->|No| K["📱 Nurture SMS<br/>(simulado)"]
 ```
 
 ### 2. "Pipeline de Ventas — Gestión de Etapas"
 
-```
-Webhook (pipeline-update)
-  → Actualizar etapa_pipeline en CRM
-  → Log del cambio
-  → Si "Reunión Agendada" → email de confirmación al lead
-  → Si "Cerrado Ganado" → email de bienvenida al lead + aviso interno
-  → Si "Cerrado Perdido" → aviso interno con motivo
+```mermaid
+flowchart TD
+    A["Webhook<br/>pipeline-update"] --> B["Actualizar etapa_pipeline<br/>en CRM"]
+    B --> C[Log del cambio]
+    C --> D{Nueva etapa}
+    D -->|Reunión Agendada| E["📅 Email confirmación<br/>al lead"]
+    D -->|Cerrado Ganado| F["🎉 Email bienvenida al lead<br/>+ aviso interno"]
+    D -->|Cerrado Perdido| G["📉 Aviso interno<br/>con motivo"]
 ```
 
 Etapas del pipeline: `Nuevo → MQL → SQL → Contactado → Reunión Agendada → Propuesta Enviada → Negociación → Cerrado Ganado / Cerrado Perdido`
