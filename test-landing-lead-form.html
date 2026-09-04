@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Página de prueba — Lead Generation Workflow</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 480px; margin: 60px auto; padding: 0 20px; background: #0d1117; color: #e6edf3; }
+  h1 { font-size: 20px; }
+  p.sub { color: #8b949e; font-size: 14px; }
+  input, textarea { width: 100%; padding: 10px; margin: 6px 0 14px; border-radius: 6px; border: 1px solid #30363d; background: #161b22; color: #e6edf3; box-sizing: border-box; }
+  button { background: #238636; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; }
+  button:disabled { opacity: 0.6; cursor: wait; }
+  #result { margin-top: 16px; padding: 12px; border-radius: 6px; font-size: 14px; display: none; }
+  #result.ok { display: block; background: #0d3320; border: 1px solid #238636; }
+  #result.err { display: block; background: #3d1518; border: 1px solid #da3633; }
+</style>
+</head>
+<body>
+  <h1>Formulario de prueba — Lead Generation</h1>
+  <p class="sub">Esta página simula tu web real: captura el contexto de GA4 (client_id, UTMs, páginas vistas) y lo manda junto con el lead al workflow de n8n, a través del túnel público de ngrok. Prueba a añadir <code>?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=test</code> a la URL antes de rellenar el formulario.</p>
+
+  <form id="lead-form">
+    <label>Nombre</label>
+    <input type="text" id="nombre" required>
+    <label>Email</label>
+    <input type="email" id="email" required>
+    <label>Teléfono</label>
+    <input type="tel" id="telefono">
+    <label>Mensaje</label>
+    <textarea id="mensaje" rows="3" placeholder="Ej: necesito información urgente"></textarea>
+    <button type="submit">Enviar</button>
+  </form>
+
+  <div id="result"></div>
+
+  <script>
+    // --- Snippet de captura GA4 (ver ga4-lead-capture-snippet.js para la versión documentada) ---
+    function getGA4ClientId() {
+      const match = document.cookie.match(/_ga=(GA\d\.\d\.\d+\.\d+)/);
+      if (!match) return '';
+      return match[1].split('.').slice(-2).join('.');
+    }
+    function getUrlParam(name) {
+      return new URLSearchParams(window.location.search).get(name) || '';
+    }
+    (function trackFirstTouch() {
+      if (!sessionStorage.getItem('landing_page')) sessionStorage.setItem('landing_page', window.location.pathname);
+      ['utm_source', 'utm_medium', 'utm_campaign'].forEach(k => {
+        const v = getUrlParam(k);
+        if (v && !sessionStorage.getItem('first_' + k)) sessionStorage.setItem('first_' + k, v.toLowerCase());
+      });
+      sessionStorage.setItem('paginas_vistas', Number(sessionStorage.getItem('paginas_vistas') || 0) + 1);
+    })();
+    function getGA4LeadContext() {
+      return {
+        ga_client_id: getGA4ClientId(),
+        utm_source: getUrlParam('utm_source') || sessionStorage.getItem('first_utm_source') || '',
+        utm_medium: getUrlParam('utm_medium') || sessionStorage.getItem('first_utm_medium') || '',
+        utm_campaign: getUrlParam('utm_campaign') || sessionStorage.getItem('first_utm_campaign') || '',
+        landing_page: sessionStorage.getItem('landing_page') || window.location.pathname,
+        paginas_vistas: Number(sessionStorage.getItem('paginas_vistas') || 1)
+      };
+    }
+
+    // --- Rellena con tu propia URL pública de n8n (ngrok u otra) antes de usar esta página ---
+    const WEBHOOK_URL = 'https://TU-DOMINIO.ngrok-free.app/webhook/lead-organico';
+    // --- Rellena con el valor real de tu credencial httpHeaderAuth "X-Webhook-Secret" en n8n.
+    //     No subas nunca tu secreto real a un repositorio público. ---
+    const WEBHOOK_SECRET = 'TU_SECRETO_AQUI';
+
+    document.getElementById('lead-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const btn = e.target.querySelector('button');
+      const resultEl = document.getElementById('result');
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+
+      const payload = {
+        nombre: document.getElementById('nombre').value,
+        email: document.getElementById('email').value,
+        telefono: document.getElementById('telefono').value,
+        mensaje: document.getElementById('mensaje').value,
+        pagina: window.location.pathname,
+        ...getGA4LeadContext()
+      };
+
+      try {
+        const res = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Webhook-Secret': WEBHOOK_SECRET },
+          body: JSON.stringify(payload)
+        });
+        resultEl.className = res.ok ? 'ok' : 'err';
+        resultEl.textContent = res.ok
+          ? '✅ Lead enviado. Revisa la tabla Leads en n8n (y tu email si es un lead caliente).'
+          : '❌ Error al enviar (status ' + res.status + ')';
+      } catch (err) {
+        resultEl.className = 'err';
+        resultEl.textContent = '❌ No se pudo conectar con el webhook. ¿Sigue n8n/ngrok corriendo?';
+      }
+      btn.disabled = false;
+      btn.textContent = 'Enviar';
+    });
+  </script>
+</body>
+</html>
